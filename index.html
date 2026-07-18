@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
   :root{
     --bg: #f5f5f3;
@@ -518,6 +519,15 @@
 
     <section id="viewSettings" class="view">
       <div class="card">
+        <h3>Wilayah (Kecamatan)</h3>
+        <p class="hint">Dipakai pada baris tanda tangan lampiran PDF, contoh: "Negara, 18 Juli 2026".</p>
+        <div class="field">
+          <label>Nama Kecamatan</label>
+          <input type="text" id="wilayahInput" placeholder="mis. Negara">
+        </div>
+        <button class="btn-ghost" style="margin-top:0;" onclick="saveWilayah()">Simpan Wilayah</button>
+      </div>
+      <div class="card">
         <h3>Data Guru</h3>
         <p class="hint">Nama, mata pelajaran, dan NIP guru dipakai untuk pilihan di form Tulis Catatan, dan untuk kolom tanda tangan pada lampiran PDF.</p>
         <div class="field">
@@ -572,6 +582,7 @@ let guruList = [];
 let kelasList = [];
 let jamList = [];
 let absenSiswaList = [];
+let wilayah = '';
 let editingId = null;
 
 function loadAll(){
@@ -592,6 +603,10 @@ function loadAll(){
     const raw = localStorage.getItem('jm-jam-list');
     jamList = raw ? JSON.parse(raw) : [];
   }catch(e){ jamList = []; }
+  try{
+    wilayah = localStorage.getItem('jm-wilayah') || '';
+  }catch(e){ wilayah = ''; }
+  document.getElementById('wilayahInput').value = wilayah;
 
   renderGuruOptions();
   renderKelasOptions();
@@ -602,6 +617,16 @@ function loadAll(){
   renderEntries();
   updateStats();
   onGuruChange();
+}
+
+function saveWilayah(){
+  wilayah = document.getElementById('wilayahInput').value.trim();
+  try{
+    localStorage.setItem('jm-wilayah', wilayah);
+    showToast('Wilayah disimpan.');
+  }catch(e){
+    showToast('Gagal menyimpan wilayah.');
+  }
 }
 
 function persistEntries(){
@@ -1015,96 +1040,87 @@ function generateJournalPDF(){
   const guruData = guruList.find(g => g.nama === guruName) || {nama: guruName, mapel: '', nip: ''};
 
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({unit:'mm', format:'a4'});
+  const doc = new jsPDF({unit:'mm', format:'a4', orientation:'landscape'});
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const marginLeft = 22;
-  const marginRight = 22;
-  const usableWidth = pageWidth - marginLeft - marginRight;
-  const marginBottom = 22;
-  let y = 24;
+  const marginLeft = 16;
+  const marginRight = 16;
+  const marginBottom = 20;
+  let y = 16;
 
+  // Kop Surat + Judul — font 12, bold
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(12);
+  doc.text('PEMERINTAH PROVINSI BALI', pageWidth/2, y, {align:'center'});
+  y += 5;
+  doc.text('SMK NEGERI 4 NEGARA', pageWidth/2, y, {align:'center'});
+  y += 4;
+  doc.setLineWidth(0.6);
+  doc.line(marginLeft, y, pageWidth-marginRight, y);
+  y += 6;
+  doc.setFontSize(12);
+  doc.text('JURNAL MENGAJAR GURU', pageWidth/2, y, {align:'center'});
+  y += 9;
+
+  // Nama Guru — kiri bawah judul
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(12);
+  doc.text(`Nama Guru : ${guruName}`, marginLeft, y);
+  y += 6;
+
+  // Tabel isian jurnal
+  const head = [[
+    'Tanggal','Kelas','Jam Mengajar','Mata Pelajaran','Materi',
+    'Metode Mengajar','Capaian Pembelajaran','Kendala','Tindak Lanjut','Kehadiran Siswa'
+  ]];
+  const body = matched.map(e => [
+    formatDate(e.tanggal),
+    e.kelas || '-',
+    e.jam || '-',
+    e.mapel || '-',
+    e.materi || '-',
+    e.metode || '-',
+    e.capaian || '-',
+    e.kendala || '-',
+    e.tindak || '-',
+    absenText(e)
+  ]);
+
+  doc.autoTable({
+    head: head,
+    body: body,
+    startY: y,
+    margin: { left: marginLeft, right: marginRight },
+    theme: 'grid',
+    styles: { font: 'helvetica', fontSize: 12, cellPadding: 3, valign: 'top', overflow: 'linebreak' },
+    headStyles: { fillColor: [63,98,89], textColor: 255, fontStyle: 'bold', fontSize: 12, halign: 'center' },
+    bodyStyles: { fontSize: 12 }
+  });
+
+  y = doc.lastAutoTable.finalY + 14;
+
+  // Signature block — font 12
   function ensureSpace(needed){
     if(y + needed > pageHeight - marginBottom){
       doc.addPage();
-      y = 24;
+      y = 20;
     }
   }
+  ensureSpace(40);
 
-  function addField(label, value){
-    ensureSpace(12);
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(10.5);
-    doc.text(label.toUpperCase(), marginLeft, y);
-    y += 5;
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(11.5);
-    const lines = doc.splitTextToSize(value && String(value).trim() ? String(value) : '-', usableWidth);
-    ensureSpace(lines.length * 5.2 + 3);
-    doc.text(lines, marginLeft, y);
-    y += lines.length * 5.2 + 6;
-  }
-
-  // Kop Surat
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(13);
-  doc.text('PEMERINTAH PROVINSI BALI', pageWidth/2, y, {align:'center'});
-  y += 6;
-  doc.setFontSize(14);
-  doc.text('SMK NEGERI 4 NEGARA', pageWidth/2, y, {align:'center'});
-  y += 5;
-  doc.setLineWidth(0.6);
-  doc.line(marginLeft, y, pageWidth-marginRight, y);
-  y += 9;
-
-  // Title
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(17);
-  doc.text('JURNAL MENGAJAR GURU', pageWidth/2, y, {align:'center'});
-  y += 5;
-  doc.setLineWidth(0.3);
-  doc.line(marginLeft, y, pageWidth-marginRight, y);
-  y += 10;
-
-  matched.forEach((e, idx) => {
-    addField('Nama Guru', e.guru);
-    addField('Tanggal', formatDate(e.tanggal));
-    addField('Kelas', e.kelas);
-    addField('Jam Mengajar', e.jam);
-    addField('Mata Pelajaran', e.mapel);
-    addField('Materi', e.materi);
-    addField('Metode Mengajar', e.metode);
-    addField('Capaian Pembelajaran', e.capaian);
-    addField('Kendala', e.kendala);
-    addField('Tindak Lanjut', e.tindak);
-    addField('Kehadiran Siswa', absenText(e));
-
-    if(idx < matched.length - 1){
-      ensureSpace(8);
-      doc.setLineWidth(0.2);
-      doc.line(marginLeft, y-2, pageWidth-marginRight, y-2);
-      y += 8;
-    }
-  });
-
-  // Signature block
-  ensureSpace(50);
-  y += 6;
   const rightX = pageWidth - marginRight;
   doc.setFont('helvetica','normal');
-  doc.setFontSize(11);
-  doc.text(formatDate(tanggal), rightX, y, {align:'right'});
+  doc.setFontSize(12);
+  const wilayahTanggal = (wilayah ? wilayah + ', ' : '') + formatDate(tanggal);
+  doc.text(wilayahTanggal, rightX, y, {align:'right'});
   y += 6;
-  doc.text('Guru Mata Pelajaran,', rightX, y, {align:'right'});
-  y += 24;
+  doc.text(`Guru Mata Pelajaran ${guruData.mapel || ''}`.trim(), rightX, y, {align:'right'});
+  y += 22;
   doc.setFont('helvetica','bold');
   doc.text(guruData.nama, rightX, y, {align:'right'});
-  y += 5;
+  y += 6;
   doc.setFont('helvetica','normal');
-  doc.setFontSize(10);
-  doc.text(guruData.mapel ? guruData.mapel : '-', rightX, y, {align:'right'});
-  y += 5;
-  doc.text(guruData.nip ? `NIP. ${guruData.nip}` : 'NIP. -', rightX, y, {align:'right'});
+  doc.text(`NIP. ${guruData.nip || '-'}`, rightX, y, {align:'right'});
 
   const safeName = guruName.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
   doc.save(`jurnal-mengajar-${safeName}-${tanggal}.pdf`);
