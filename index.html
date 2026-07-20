@@ -1050,27 +1050,27 @@ function generateJournalPDF(){
 
   // Kop Surat + Judul — font 12, bold
   doc.setFont('helvetica','bold');
-  doc.setFontSize(11);
+  doc.setFontSize(12);
   doc.text('PEMERINTAH PROVINSI BALI', pageWidth/2, y, {align:'center'});
   y += 5;
   doc.text('SMK NEGERI 4 NEGARA', pageWidth/2, y, {align:'center'});
-  y += 4;
+  y += 3.5;
   doc.setLineWidth(0.6);
   doc.line(marginLeft, y, pageWidth-marginRight, y);
-  y += 6;
-  doc.setFontSize(11);
+  y += 5.5;
+  doc.setFontSize(12);
   doc.text('JURNAL MENGAJAR GURU', pageWidth/2, y, {align:'center'});
-  y += 9;
+  y += 7;
 
   // Nama Guru — kiri bawah judul
   doc.setFont('helvetica','normal');
-  doc.setFontSize(11);
+  doc.setFontSize(12);
   doc.text(`Nama Guru : ${guruName}`, marginLeft, y);
-  y += 6;
+  y += 5;
 
   // Tabel isian jurnal
   const head = [[
-    'Tanggal','Kelas','Jam','Mata Pelajaran','Materi',
+    'Tanggal','Kelas','Jam Mengajar','Mata Pelajaran','Materi',
     'Metode Mengajar','Capaian Pembelajaran','Kendala','Tindak Lanjut','Kehadiran Siswa'
   ]];
   const body = matched.map(e => [
@@ -1092,12 +1092,12 @@ function generateJournalPDF(){
     startY: y,
     margin: { left: marginLeft, right: marginRight },
     theme: 'grid',
-    styles: { font: 'helvetica', fontSize: 11, cellPadding: 3, valign: 'top', overflow: 'linebreak' },
-    headStyles: { fillColor: [63,98,89], textColor: 255, fontStyle: 'bold', fontSize: 11, halign: 'center' },
-    bodyStyles: { fontSize: 11 }
+    styles: { font: 'helvetica', fontSize: 12, cellPadding: 1.8, valign: 'top', overflow: 'linebreak' },
+    headStyles: { fillColor: [63,98,89], textColor: 255, fontStyle: 'bold', fontSize: 12, halign: 'center', cellPadding: 2 },
+    bodyStyles: { fontSize: 12 }
   });
 
-  y = doc.lastAutoTable.finalY + 14;
+  y = doc.lastAutoTable.finalY + 6;
 
   // Signature block — font 12
   function ensureSpace(needed){
@@ -1106,19 +1106,19 @@ function generateJournalPDF(){
       y = 20;
     }
   }
-  ensureSpace(40);
+  ensureSpace(30);
 
   const rightX = pageWidth - marginRight;
   doc.setFont('helvetica','normal');
   doc.setFontSize(12);
   const wilayahTanggal = (wilayah ? wilayah + ', ' : '') + formatDate(tanggal);
   doc.text(wilayahTanggal, rightX, y, {align:'right'});
-  y += 6;
+  y += 5;
   doc.text(`Guru Mata Pelajaran ${guruData.mapel || ''}`.trim(), rightX, y, {align:'right'});
-  y += 22;
+  y += 14;
   doc.setFont('helvetica','bold');
   doc.text(guruData.nama, rightX, y, {align:'right'});
-  y += 6;
+  y += 5;
   doc.setFont('helvetica','normal');
   doc.text(`NIP. ${guruData.nip || '-'}`, rightX, y, {align:'right'});
 
