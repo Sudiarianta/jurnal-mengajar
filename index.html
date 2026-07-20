@@ -1050,7 +1050,7 @@ function generateJournalPDF(){
 
   // Kop Surat + Judul — font 12, bold
   doc.setFont('helvetica','bold');
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.text('PEMERINTAH PROVINSI BALI', pageWidth/2, y, {align:'center'});
   y += 5;
   doc.text('SMK NEGERI 4 NEGARA', pageWidth/2, y, {align:'center'});
@@ -1058,19 +1058,19 @@ function generateJournalPDF(){
   doc.setLineWidth(0.6);
   doc.line(marginLeft, y, pageWidth-marginRight, y);
   y += 6;
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.text('JURNAL MENGAJAR GURU', pageWidth/2, y, {align:'center'});
   y += 9;
 
   // Nama Guru — kiri bawah judul
   doc.setFont('helvetica','normal');
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.text(`Nama Guru : ${guruName}`, marginLeft, y);
   y += 6;
 
   // Tabel isian jurnal
   const head = [[
-    'Tanggal','Kelas','Jam Mengajar','Mata Pelajaran','Materi',
+    'Tanggal','Kelas','Jam','Mata Pelajaran','Materi',
     'Metode Mengajar','Capaian Pembelajaran','Kendala','Tindak Lanjut','Kehadiran Siswa'
   ]];
   const body = matched.map(e => [
@@ -1092,9 +1092,9 @@ function generateJournalPDF(){
     startY: y,
     margin: { left: marginLeft, right: marginRight },
     theme: 'grid',
-    styles: { font: 'helvetica', fontSize: 12, cellPadding: 3, valign: 'top', overflow: 'linebreak' },
-    headStyles: { fillColor: [63,98,89], textColor: 255, fontStyle: 'bold', fontSize: 12, halign: 'center' },
-    bodyStyles: { fontSize: 12 }
+    styles: { font: 'helvetica', fontSize: 11, cellPadding: 3, valign: 'top', overflow: 'linebreak' },
+    headStyles: { fillColor: [63,98,89], textColor: 255, fontStyle: 'bold', fontSize: 11, halign: 'center' },
+    bodyStyles: { fontSize: 11 }
   });
 
   y = doc.lastAutoTable.finalY + 14;
