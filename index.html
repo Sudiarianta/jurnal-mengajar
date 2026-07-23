@@ -1141,7 +1141,7 @@ function generateJournalPDF(){
   const marginRight = 16;
   const usableWidth = pageWidth - marginLeft - marginRight;
   const marginBottom = 20;
-  let y = 16;
+  let y = 10;
 
   function ensureSpace(needed){
     if(y + needed > pageHeight - marginBottom){
@@ -1209,9 +1209,9 @@ function generateJournalPDF(){
     startY: y,
     margin: { left: marginLeft, right: marginRight },
     theme: 'grid',
-    styles: { font: 'helvetica', fontSize: 12, cellPadding: 1.8, valign: 'top', overflow: 'linebreak' },
-    headStyles: { fillColor: [63,98,89], textColor: 255, fontStyle: 'bold', fontSize: 12, halign: 'center', cellPadding: 2 },
-    bodyStyles: { fontSize: 12 },
+    styles: { font: 'helvetica', fontSize: 12, cellPadding: 1.8, valign: 'top', overflow: 'linebreak', lineWidth: 0.35, lineColor: [0,0,0] },
+    headStyles: { fillColor: [63,98,89], textColor: 255, fontStyle: 'bold', fontSize: 12, halign: 'center', cellPadding: 2, lineWidth: 0.35, lineColor: [0,0,0] },
+    bodyStyles: { fontSize: 12, lineWidth: 0.35, lineColor: [0,0,0] },
     columnStyles: {
       0: { cellWidth: 10, halign: 'center' },
       1: { cellWidth: 26 },
@@ -1232,19 +1232,29 @@ function generateJournalPDF(){
   y += 7;
 
   function addRefleksi(label, value){
+    const indentX = marginLeft + 5;
+    const boxWidth = pageWidth - marginRight - indentX;
+    const tableLineWidth = 0.35;
+
     ensureSpace(12);
     doc.setFont('helvetica','bold');
     doc.setFontSize(12);
-    const labelLines = doc.splitTextToSize(label, usableWidth);
+    const labelLines = doc.splitTextToSize(label, boxWidth);
     ensureSpace(labelLines.length * 5.5);
-    doc.text(labelLines, marginLeft, y);
-    y += labelLines.length * 5.5 + 1;
+    doc.text(labelLines, indentX, y);
+    y += labelLines.length * 5.5 + 2;
+
     doc.setFont('helvetica','normal');
     doc.setFontSize(12);
-    const lines = doc.splitTextToSize(value && value.trim() ? value : '-', usableWidth);
-    ensureSpace(lines.length * 5.5 + 5);
-    doc.text(lines, marginLeft, y);
-    y += lines.length * 5.5 + 7;
+    const lines = doc.splitTextToSize(value && value.trim() ? value : '-', boxWidth - 6);
+    const lineHeight = 5.5;
+    const boxPadV = 3;
+    const boxHeight = lines.length * lineHeight + boxPadV * 2;
+    ensureSpace(boxHeight + 8);
+    doc.setLineWidth(tableLineWidth);
+    doc.rect(indentX, y, boxWidth, boxHeight, 'S');
+    doc.text(lines, indentX + 3, y + boxPadV + 4);
+    y += boxHeight + 8;
   }
 
   matched.forEach((e, idx) => {
