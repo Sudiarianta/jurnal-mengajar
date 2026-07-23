@@ -1141,7 +1141,7 @@ function generateJournalPDF(){
   const marginRight = 16;
   const usableWidth = pageWidth - marginLeft - marginRight;
   const marginBottom = 20;
-  let y = 10;
+  let y = 6;
 
   function ensureSpace(needed){
     if(y + needed > pageHeight - marginBottom){
@@ -1242,7 +1242,7 @@ function generateJournalPDF(){
     const labelLines = doc.splitTextToSize(label, boxWidth);
     ensureSpace(labelLines.length * 5.5);
     doc.text(labelLines, indentX, y);
-    y += labelLines.length * 5.5 + 2;
+    y += labelLines.length * 5.5 + 0.5;
 
     doc.setFont('helvetica','normal');
     doc.setFontSize(12);
@@ -1271,7 +1271,7 @@ function generateJournalPDF(){
   });
 
   // Tanda tangan — kiri (Kepala Sekolah) & kanan (Guru Mata Pelajaran)
-  ensureSpace(46);
+  ensureSpace(52);
   y += 4;
   const signY0 = y;
   const rightX = pageWidth - marginRight;
@@ -1282,9 +1282,9 @@ function generateJournalPDF(){
   doc.text('Mengetahui,', marginLeft, signY0);
   doc.text('Kepala SMKN 4 Negara', marginLeft, signY0 + 5);
   doc.setFont('helvetica','bold');
-  doc.text(kepsek.nama || '-', marginLeft, signY0 + 19);
+  doc.text(kepsek.nama || '-', marginLeft, signY0 + 27);
   doc.setFont('helvetica','normal');
-  doc.text(`NIP. ${kepsek.nip || '-'}`, marginLeft, signY0 + 24);
+  doc.text(`NIP. ${kepsek.nip || '-'}`, marginLeft, signY0 + 32);
 
   // Kanan — Guru Mata Pelajaran (tetap)
   doc.setFont('helvetica','normal');
@@ -1293,9 +1293,9 @@ function generateJournalPDF(){
   doc.text(wilayahTanggal, rightX, signY0, {align:'right'});
   doc.text(`Guru Mata Pelajaran ${guruData.mapel || ''}`.trim(), rightX, signY0 + 5, {align:'right'});
   doc.setFont('helvetica','bold');
-  doc.text(guruData.nama, rightX, signY0 + 19, {align:'right'});
+  doc.text(guruData.nama, rightX, signY0 + 27, {align:'right'});
   doc.setFont('helvetica','normal');
-  doc.text(`NIP. ${guruData.nip || '-'}`, rightX, signY0 + 24, {align:'right'});
+  doc.text(`NIP. ${guruData.nip || '-'}`, rightX, signY0 + 32, {align:'right'});
 
   const safeName = guruName.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
   doc.save(`jurnal-mengajar-${safeName}-${tanggal}.pdf`);
