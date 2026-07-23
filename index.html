@@ -451,33 +451,25 @@
           <div class="empty-hint" id="kelasEmptyHint" style="display:none;">Belum ada data kelas. Tambahkan dulu di menu Pengaturan.</div>
         </div>
         <div class="field">
-          <label>Jam Mengajar</label>
+          <label>Jam Ke</label>
           <select id="fJam"></select>
           <div class="empty-hint" id="jamEmptyHint" style="display:none;">Belum ada data jam mengajar. Tambahkan dulu di menu Pengaturan.</div>
-        </div>
-        <div class="field">
-          <label>Mata Pelajaran</label>
-          <input type="text" id="fMapel" placeholder="mis. IPA">
         </div>
         <div class="field">
           <label>Materi</label>
           <input type="text" id="fMateri" placeholder="mis. Sistem Pencernaan">
         </div>
         <div class="field">
-          <label>Metode Mengajar</label>
-          <input type="text" id="fMetode" placeholder="mis. Diskusi kelompok, Praktikum">
+          <label>1. Tuliskan pengalaman/hal-hal baik selama pembelajaran</label>
+          <textarea id="fRefleksi1" placeholder="Pengalaman atau hal baik yang terjadi selama pembelajaran"></textarea>
         </div>
         <div class="field">
-          <label>Capaian Pembelajaran</label>
-          <textarea id="fCapaian" placeholder="Apa yang tercapai dari tujuan pembelajaran hari ini"></textarea>
+          <label>2. Tuliskan hal-hal yang belum baik/kendala dihadapi selama pembelajaran</label>
+          <textarea id="fRefleksi2" placeholder="Hal yang belum baik atau kendala selama pembelajaran"></textarea>
         </div>
         <div class="field">
-          <label>Kendala</label>
-          <textarea id="fKendala" placeholder="Hambatan selama proses mengajar"></textarea>
-        </div>
-        <div class="field">
-          <label>Tindak Lanjut</label>
-          <textarea id="fTindak" placeholder="Rencana perbaikan atau langkah berikutnya"></textarea>
+          <label>3. Tindak lanjut yang akan dilaksanakan untuk perbaikan pembelajaran</label>
+          <textarea id="fRefleksi3" placeholder="Rencana tindak lanjut untuk perbaikan pembelajaran"></textarea>
         </div>
         <div class="field">
           <label>Kehadiran Siswa</label>
@@ -534,6 +526,19 @@
           <input type="text" id="wilayahInput" placeholder="mis. Negara">
         </div>
         <button class="btn-ghost" style="margin-top:0;" onclick="saveWilayah()">Simpan Wilayah</button>
+      </div>
+      <div class="card">
+        <h3>Data Kepala Sekolah</h3>
+        <p class="hint">Dipakai pada kolom tanda tangan "Mengetahui" di sebelah kiri lampiran PDF.</p>
+        <div class="field">
+          <label>Nama Kepala Sekolah</label>
+          <input type="text" id="kepsekNamaInput" placeholder="Nama lengkap kepala sekolah">
+        </div>
+        <div class="field">
+          <label>NIP Kepala Sekolah</label>
+          <input type="text" id="kepsekNipInput" placeholder="Nomor Induk Pegawai">
+        </div>
+        <button class="btn-ghost" style="margin-top:0;" onclick="saveKepsek()">Simpan Data Kepala Sekolah</button>
       </div>
       <div class="card">
         <h3>Kop Jurnal (Gambar Header)</h3>
@@ -600,6 +605,7 @@ let kelasList = [];
 let jamList = [];
 let absenSiswaList = [];
 let wilayah = '';
+let kepsek = { nama: '', nip: '' };
 let headerImage = null;
 let editingId = null;
 
@@ -629,6 +635,12 @@ function loadAll(){
     headerImage = raw ? JSON.parse(raw) : null;
   }catch(e){ headerImage = null; }
   document.getElementById('wilayahInput').value = wilayah;
+  try{
+    const raw = localStorage.getItem('jm-kepsek');
+    kepsek = raw ? JSON.parse(raw) : { nama: '', nip: '' };
+  }catch(e){ kepsek = { nama: '', nip: '' }; }
+  document.getElementById('kepsekNamaInput').value = kepsek.nama || '';
+  document.getElementById('kepsekNipInput').value = kepsek.nip || '';
   renderHeaderImagePreview();
 
   renderGuruOptions();
@@ -649,6 +661,18 @@ function saveWilayah(){
     showToast('Wilayah disimpan.');
   }catch(e){
     showToast('Gagal menyimpan wilayah.');
+  }
+}
+function saveKepsek(){
+  kepsek = {
+    nama: document.getElementById('kepsekNamaInput').value.trim(),
+    nip: document.getElementById('kepsekNipInput').value.trim()
+  };
+  try{
+    localStorage.setItem('jm-kepsek', JSON.stringify(kepsek));
+    showToast('Data kepala sekolah disimpan.');
+  }catch(e){
+    showToast('Gagal menyimpan data kepala sekolah.');
   }
 }
 
@@ -926,12 +950,10 @@ function saveEntry(){
   const tanggal = document.getElementById('fTanggal').value;
   const kelas = document.getElementById('fKelas').value;
   const jam = document.getElementById('fJam').value;
-  const mapel = document.getElementById('fMapel').value.trim();
   const materi = document.getElementById('fMateri').value.trim();
-  const metode = document.getElementById('fMetode').value.trim();
-  const capaian = document.getElementById('fCapaian').value.trim();
-  const kendala = document.getElementById('fKendala').value.trim();
-  const tindak = document.getElementById('fTindak').value.trim();
+  const refleksi1 = document.getElementById('fRefleksi1').value.trim();
+  const refleksi2 = document.getElementById('fRefleksi2').value.trim();
+  const refleksi3 = document.getElementById('fRefleksi3').value.trim();
   const hadirSemua = document.getElementById('fHadirSemua').checked;
   const absen = { hadirSemua, list: hadirSemua ? [] : absenSiswaList.slice() };
 
@@ -939,21 +961,21 @@ function saveEntry(){
     showToast('Pilih nama guru dan kelas terlebih dahulu (tambahkan di Pengaturan jika belum ada).');
     return;
   }
-  if(!tanggal || !mapel || !materi){
-    showToast('Mohon isi tanggal, mata pelajaran, dan materi.');
+  if(!tanggal || !materi){
+    showToast('Mohon isi tanggal dan materi.');
     return;
   }
 
   if(editingId){
     const idx = entries.findIndex(e=>e.id===editingId);
     if(idx>-1){
-      entries[idx] = {...entries[idx], guru, tanggal, kelas, jam, mapel, materi, metode, capaian, kendala, tindak, absen};
+      entries[idx] = {...entries[idx], guru, tanggal, kelas, jam, materi, refleksi1, refleksi2, refleksi3, absen};
     }
     showToast('Catatan diperbarui.');
   }else{
     entries.push({
       id: Date.now().toString(),
-      guru, tanggal, kelas, jam, mapel, materi, metode, capaian, kendala, tindak, absen,
+      guru, tanggal, kelas, jam, materi, refleksi1, refleksi2, refleksi3, absen,
       createdAt: Date.now()
     });
     showToast('Catatan tersimpan.');
@@ -968,12 +990,10 @@ function saveEntry(){
 function resetForm(){
   editingId = null;
   document.getElementById('fTanggal').value = todayStr();
-  document.getElementById('fMapel').value = '';
   document.getElementById('fMateri').value = '';
-  document.getElementById('fMetode').value = '';
-  document.getElementById('fCapaian').value = '';
-  document.getElementById('fKendala').value = '';
-  document.getElementById('fTindak').value = '';
+  document.getElementById('fRefleksi1').value = '';
+  document.getElementById('fRefleksi2').value = '';
+  document.getElementById('fRefleksi3').value = '';
   document.getElementById('fHadirSemua').checked = true;
   absenSiswaList = [];
   toggleHadirSemua();
@@ -989,12 +1009,10 @@ function editEntry(id){
   document.getElementById('fTanggal').value = e.tanggal;
   document.getElementById('fKelas').value = e.kelas;
   document.getElementById('fJam').value = e.jam || '';
-  document.getElementById('fMapel').value = e.mapel;
   document.getElementById('fMateri').value = e.materi;
-  document.getElementById('fMetode').value = e.metode || '';
-  document.getElementById('fCapaian').value = e.capaian || '';
-  document.getElementById('fKendala').value = e.kendala || '';
-  document.getElementById('fTindak').value = e.tindak || '';
+  document.getElementById('fRefleksi1').value = e.refleksi1 || '';
+  document.getElementById('fRefleksi2').value = e.refleksi2 || '';
+  document.getElementById('fRefleksi3').value = e.refleksi3 || '';
   const absen = e.absen || {hadirSemua:true, list:[]};
   document.getElementById('fHadirSemua').checked = absen.hadirSemua;
   absenSiswaList = (absen.list || []).slice();
@@ -1034,7 +1052,6 @@ function renderEntries(){
   let filtered = entries.filter(e =>
     (e.guru||'').toLowerCase().includes(q) ||
     (e.kelas||'').toLowerCase().includes(q) ||
-    (e.mapel||'').toLowerCase().includes(q) ||
     (e.materi||'').toLowerCase().includes(q)
   );
   filtered.sort((a,b)=> b.tanggal.localeCompare(a.tanggal) || b.createdAt-a.createdAt);
@@ -1049,15 +1066,14 @@ function renderEntries(){
       <div class="top">
         <div>
           <h3>${escapeHtml(e.materi)}</h3>
-          <div class="sub">${escapeHtml(e.guru)} · ${escapeHtml(e.kelas)} · ${escapeHtml(e.mapel)}</div>
+          <div class="sub">${escapeHtml(e.guru)} · ${escapeHtml(e.kelas)} · Jam ke ${escapeHtml(e.jam||'-')}</div>
         </div>
         <span class="date">${formatDate(e.tanggal)}</span>
       </div>
-      ${e.jam ? `<div class="kv"><div class="k">Jam Mengajar</div><div class="v">${escapeHtml(e.jam)}</div></div>` : ''}
-      ${e.metode ? `<div class="kv"><div class="k">Metode Mengajar</div><div class="v">${escapeHtml(e.metode)}</div></div>` : ''}
-      ${e.capaian ? `<div class="kv"><div class="k">Capaian Pembelajaran</div><div class="v">${escapeHtml(e.capaian)}</div></div>` : ''}
-      ${e.kendala ? `<div class="kv"><div class="k">Kendala</div><div class="v">${escapeHtml(e.kendala)}</div></div>` : ''}
-      ${e.tindak ? `<div class="kv"><div class="k">Tindak Lanjut</div><div class="v">${escapeHtml(e.tindak)}</div></div>` : ''}
+      ${e.jam ? `<div class="kv"><div class="k">Jam Ke</div><div class="v">${escapeHtml(e.jam)}</div></div>` : ''}
+      ${e.refleksi1 ? `<div class="kv"><div class="k">1. Pengalaman/Hal Baik</div><div class="v">${escapeHtml(e.refleksi1)}</div></div>` : ''}
+      ${e.refleksi2 ? `<div class="kv"><div class="k">2. Hal Belum Baik/Kendala</div><div class="v">${escapeHtml(e.refleksi2)}</div></div>` : ''}
+      ${e.refleksi3 ? `<div class="kv"><div class="k">3. Tindak Lanjut</div><div class="v">${escapeHtml(e.refleksi3)}</div></div>` : ''}
       <div class="kv"><div class="k">Kehadiran Siswa</div><div class="v">${escapeHtml(absenText(e))}</div></div>
       <div class="actions">
         <button class="edit" onclick="editEntry('${e.id}')">Ubah</button>
@@ -1078,9 +1094,9 @@ function exportCSV(){
     showToast('Belum ada data untuk diunduh.');
     return;
   }
-  const header = ['Tanggal','Guru','Kelas','Jam Mengajar','Mapel','Materi','Metode Mengajar','Capaian Pembelajaran','Kendala','Tindak Lanjut','Kehadiran Siswa'];
+  const header = ['Tanggal','Guru','Kelas','Jam Ke','Materi','1. Pengalaman/Hal Baik','2. Hal Belum Baik/Kendala','3. Tindak Lanjut','Kehadiran Siswa'];
   const rows = entries.slice().sort((a,b)=>a.tanggal.localeCompare(b.tanggal)).map(e =>
-    [e.tanggal, e.guru, e.kelas, e.jam, e.mapel, e.materi, e.metode, e.capaian, e.kendala, e.tindak, absenText(e)]
+    [e.tanggal, e.guru, e.kelas, e.jam, e.materi, e.refleksi1, e.refleksi2, e.refleksi3, absenText(e)]
       .map(v => `"${String(v||'').replace(/\n/g,' ').replace(/"/g,'""')}"`).join(',')
   );
   const csv = [header.join(','), ...rows].join('\n');
@@ -1118,18 +1134,26 @@ function generateJournalPDF(){
   const guruData = guruList.find(g => g.nama === guruName) || {nama: guruName, mapel: '', nip: ''};
 
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({unit:'mm', format:'a4', orientation:'landscape'});
+  const doc = new jsPDF({unit:'mm', format:'a4', orientation:'portrait'});
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const marginLeft = 16;
   const marginRight = 16;
+  const usableWidth = pageWidth - marginLeft - marginRight;
   const marginBottom = 20;
   let y = 16;
 
-  // Kop Surat + Judul
+  function ensureSpace(needed){
+    if(y + needed > pageHeight - marginBottom){
+      doc.addPage();
+      y = 20;
+    }
+  }
+
+  // Kop Surat
   if(headerImage && headerImage.dataUrl){
-    const maxW = pageWidth - marginLeft - marginRight;
-    const maxH = 24;
+    const maxW = usableWidth;
+    const maxH = 22;
     let imgW = maxW;
     let imgH = imgW * (headerImage.height / headerImage.width);
     if(imgH > maxH){
@@ -1142,11 +1166,7 @@ function generateJournalPDF(){
     y += imgH + 3;
     doc.setLineWidth(0.6);
     doc.line(marginLeft, y, pageWidth-marginRight, y);
-    y += 5.5;
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(12);
-    doc.text('JURNAL MENGAJAR GURU', pageWidth/2, y, {align:'center'});
-    y += 7;
+    y += 6;
   }else{
     doc.setFont('helvetica','bold');
     doc.setFontSize(12);
@@ -1156,33 +1176,30 @@ function generateJournalPDF(){
     y += 3.5;
     doc.setLineWidth(0.6);
     doc.line(marginLeft, y, pageWidth-marginRight, y);
-    y += 5.5;
-    doc.setFontSize(12);
-    doc.text('JURNAL MENGAJAR GURU', pageWidth/2, y, {align:'center'});
-    y += 7;
+    y += 6;
   }
 
-  // Nama Guru — kiri bawah judul
-  doc.setFont('helvetica','normal');
+  // Judul
+  doc.setFont('helvetica','bold');
   doc.setFontSize(12);
-  doc.text(`Nama Guru : ${guruName}`, marginLeft, y);
+  doc.text('JURNAL DAN REFLEKSI PASCA PEMBELAJARAN GURU (SIPAJAR)', pageWidth/2, y, {align:'center'});
+  y += 5.5;
+  doc.text('TAHUN PELAJARAN 2026/2027', pageWidth/2, y, {align:'center'});
+  y += 9;
+
+  // A. Jurnal Guru
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(12);
+  doc.text('A. Jurnal Guru', marginLeft, y);
   y += 5;
 
-  // Tabel isian jurnal
-  const head = [[
-    'Tanggal','Kelas','Jam Mengajar','Mata Pelajaran','Materi',
-    'Metode Mengajar','Capaian Pembelajaran','Kendala','Tindak Lanjut','Kehadiran Siswa'
-  ]];
-  const body = matched.map(e => [
+  const head = [['No','Tanggal','Jam Ke','Kelas','Materi','Kehadiran']];
+  const body = matched.map((e, i) => [
+    String(i+1),
     formatDate(e.tanggal),
-    e.kelas || '-',
     e.jam || '-',
-    e.mapel || '-',
+    e.kelas || '-',
     e.materi || '-',
-    e.metode || '-',
-    e.capaian || '-',
-    e.kendala || '-',
-    e.tindak || '-',
     absenText(e)
   ]);
 
@@ -1194,33 +1211,81 @@ function generateJournalPDF(){
     theme: 'grid',
     styles: { font: 'helvetica', fontSize: 12, cellPadding: 1.8, valign: 'top', overflow: 'linebreak' },
     headStyles: { fillColor: [63,98,89], textColor: 255, fontStyle: 'bold', fontSize: 12, halign: 'center', cellPadding: 2 },
-    bodyStyles: { fontSize: 12 }
+    bodyStyles: { fontSize: 12 },
+    columnStyles: {
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 26 },
+      2: { cellWidth: 18, halign: 'center' },
+      3: { cellWidth: 18, halign: 'center' },
+      4: { cellWidth: 'auto' },
+      5: { cellWidth: 'auto' }
+    }
   });
 
-  y = doc.lastAutoTable.finalY + 14;
+  y = doc.lastAutoTable.finalY + 10;
 
-  // Signature block — font 12
-  function ensureSpace(needed){
-    if(y + needed > pageHeight - marginBottom){
-      doc.addPage();
-      y = 20;
-    }
+  // B. Refleksi Pasca Pembelajaran
+  ensureSpace(20);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(12);
+  doc.text('B. Refleksi Pasca Pembelajaran', marginLeft, y);
+  y += 7;
+
+  function addRefleksi(label, value){
+    ensureSpace(12);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(12);
+    const labelLines = doc.splitTextToSize(label, usableWidth);
+    ensureSpace(labelLines.length * 5.5);
+    doc.text(labelLines, marginLeft, y);
+    y += labelLines.length * 5.5 + 1;
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(12);
+    const lines = doc.splitTextToSize(value && value.trim() ? value : '-', usableWidth);
+    ensureSpace(lines.length * 5.5 + 5);
+    doc.text(lines, marginLeft, y);
+    y += lines.length * 5.5 + 7;
   }
-  ensureSpace(30);
 
+  matched.forEach((e, idx) => {
+    if(matched.length > 1){
+      ensureSpace(8);
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(12);
+      doc.text(`Sesi ${idx+1} — Kelas ${e.kelas || '-'} (Jam ke ${e.jam || '-'})`, marginLeft, y);
+      y += 6.5;
+    }
+    addRefleksi('1. Tuliskan pengalaman/hal-hal baik selama pembelajaran', e.refleksi1);
+    addRefleksi('2. Tuliskan hal-hal yang belum baik/kendala dihadapi selama pembelajaran', e.refleksi2);
+    addRefleksi('3. Tindak lanjut yang akan dilaksanakan untuk perbaikan pembelajaran', e.refleksi3);
+  });
+
+  // Tanda tangan — kiri (Kepala Sekolah) & kanan (Guru Mata Pelajaran)
+  ensureSpace(46);
+  y += 4;
+  const signY0 = y;
   const rightX = pageWidth - marginRight;
+
+  // Kiri — Mengetahui / Kepala Sekolah
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(12);
+  doc.text('Mengetahui,', marginLeft, signY0);
+  doc.text('Kepala SMKN 4 Negara', marginLeft, signY0 + 5);
+  doc.setFont('helvetica','bold');
+  doc.text(kepsek.nama || '-', marginLeft, signY0 + 19);
+  doc.setFont('helvetica','normal');
+  doc.text(`NIP. ${kepsek.nip || '-'}`, marginLeft, signY0 + 24);
+
+  // Kanan — Guru Mata Pelajaran (tetap)
   doc.setFont('helvetica','normal');
   doc.setFontSize(12);
   const wilayahTanggal = (wilayah ? wilayah + ', ' : '') + formatDate(tanggal);
-  doc.text(wilayahTanggal, rightX, y, {align:'right'});
-  y += 5;
-  doc.text(`Guru Mata Pelajaran ${guruData.mapel || ''}`.trim(), rightX, y, {align:'right'});
-  y += 14;
+  doc.text(wilayahTanggal, rightX, signY0, {align:'right'});
+  doc.text(`Guru Mata Pelajaran ${guruData.mapel || ''}`.trim(), rightX, signY0 + 5, {align:'right'});
   doc.setFont('helvetica','bold');
-  doc.text(guruData.nama, rightX, y, {align:'right'});
-  y += 5;
+  doc.text(guruData.nama, rightX, signY0 + 19, {align:'right'});
   doc.setFont('helvetica','normal');
-  doc.text(`NIP. ${guruData.nip || '-'}`, rightX, y, {align:'right'});
+  doc.text(`NIP. ${guruData.nip || '-'}`, rightX, signY0 + 24, {align:'right'});
 
   const safeName = guruName.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
   doc.save(`jurnal-mengajar-${safeName}-${tanggal}.pdf`);
