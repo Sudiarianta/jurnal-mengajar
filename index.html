@@ -54,6 +54,11 @@
     margin:0;
     color: var(--ink);
   }
+  header p{
+    font-size:12.5px;
+    color: var(--ink-soft);
+    margin:8px 0 0;
+  }
   .stats{ display:flex; gap:10px; margin-top:18px; }
   .stat{
     flex:1;
@@ -415,8 +420,71 @@
 <body>
 <div class="app">
   <div id="configWarning" style="display:none; background:#b3523f; color:#fff; padding:12px 18px; font-size:12.5px; line-height:1.5; text-align:center;">
-    ⚠️ Supabase belum dikonfigurasi. Buka kode sumber (index.html), cari <code>https://psanpvxevlzxhvxmwupo.supabase.co</code> dan <code>sb_publishable_Pt84meoyR-ydGmAKRp0hnQ_fdo6ruVu</code> di bagian atas &lt;script&gt;, lalu isi dengan data project Supabase Anda.
+    ⚠️ Supabase belum dikonfigurasi. Buka kode sumber (index.html), cari <code>SUPABASE_URL</code> dan <code>SUPABASE_ANON_KEY</code> di bagian atas &lt;script&gt;, lalu isi dengan data project Supabase Anda.
   </div>
+
+  <!-- ===================== LAYAR LOGIN ===================== -->
+  <div id="loginScreen">
+    <header>
+      <div class="eyebrow">Buku Catatan Digital</div>
+      <h1>Jurnal Mengajar</h1>
+      <p>Masuk memakai NIP untuk mulai mencatat jurnal</p>
+    </header>
+    <main>
+      <div id="loginGuruBox">
+        <div class="card">
+          <h3>Masuk sebagai Guru</h3>
+          <p class="hint">Masukkan NIP Anda yang sudah terdaftar.</p>
+          <div class="field">
+            <label>NIP</label>
+            <input type="text" id="loginNip" inputmode="numeric" placeholder="Masukkan NIP Anda">
+          </div>
+          <button class="btn-primary" onclick="loginAsGuru()">Masuk</button>
+          <button class="btn-ghost" onclick="showRegisterBox()">Belum terdaftar? Daftar sebagai guru baru</button>
+        </div>
+      </div>
+
+      <div id="registerGuruBox" style="display:none;">
+        <div class="card">
+          <h3>Daftar Guru Baru</h3>
+          <p class="hint">Isi data Anda sekali saja. Setelah terdaftar, cukup masuk memakai NIP.</p>
+          <div class="field">
+            <label>Nama Guru</label>
+            <input type="text" id="regNama" placeholder="Nama lengkap">
+          </div>
+          <div class="field">
+            <label>Mata Pelajaran yang Diampu</label>
+            <input type="text" id="regMapel" placeholder="mis. IPA">
+          </div>
+          <div class="field">
+            <label>NIP</label>
+            <input type="text" id="regNip" inputmode="numeric" placeholder="Nomor Induk Pegawai">
+          </div>
+          <button class="btn-primary" onclick="registerGuru()">Daftar & Masuk</button>
+          <button class="btn-ghost" onclick="showLoginBox()">Sudah terdaftar? Kembali ke Masuk</button>
+        </div>
+      </div>
+
+      <div id="loginAdminBox" style="display:none; margin-top:16px;">
+        <div class="card">
+          <h3>Masuk sebagai Admin</h3>
+          <div class="field">
+            <label>PIN Admin</label>
+            <input type="password" id="loginAdminPin" inputmode="numeric" placeholder="PIN Admin">
+          </div>
+          <button class="btn-primary" onclick="loginAsAdmin()">Masuk sebagai Admin</button>
+          <button class="btn-ghost" onclick="hideAdminBox()">Batal</button>
+        </div>
+      </div>
+
+      <div style="text-align:center; margin-top:22px;">
+        <button id="adminToggleBtn" onclick="showAdminBox()" style="border:none; background:none; color:var(--ink-faint); font-size:12px; text-decoration:underline; cursor:pointer;">Admin</button>
+      </div>
+    </main>
+  </div>
+
+  <!-- ===================== LAYAR APLIKASI ===================== -->
+  <div id="appScreen" style="display:none;">
   <header>
     <div class="eyebrow">Buku Catatan Digital</div>
     <h1>Jurnal Mengajar</h1>
@@ -424,12 +492,16 @@
       <div class="stat"><div class="num" id="statTotal">0</div><div class="lbl">Total catatan</div></div>
       <div class="stat"><div class="num" id="statWeek">0</div><div class="lbl">Minggu ini</div></div>
     </div>
+    <div style="text-align:center; margin-top:14px;">
+      <span id="sessionLabel" style="font-size:12px; color:var(--ink-soft); opacity:.85;"></span>
+      <button onclick="logout()" style="margin-left:8px; border:none; background:none; color:var(--accent); font-size:12px; font-weight:700; text-decoration:underline; cursor:pointer;">Keluar</button>
+    </div>
   </header>
 
   <nav class="tabs">
     <button id="tabWrite" class="active" onclick="switchView('write')">Tulis</button>
     <button id="tabHist" onclick="switchView('hist')">Riwayat</button>
-    <button id="tabSettings" onclick="switchView('settings')">Pengaturan</button>
+    <button id="tabSettings" onclick="switchView('settings')" style="display:none;">Pengaturan</button>
   </nav>
 
   <main>
@@ -523,6 +595,15 @@
 
     <section id="viewSettings" class="view">
       <div class="card">
+        <h3>PIN Admin</h3>
+        <p class="hint">PIN ini dipakai untuk masuk sebagai Admin lewat tombol "Admin" di layar Masuk. Segera ganti dari PIN bawaan.</p>
+        <div class="field">
+          <label>PIN Admin Baru</label>
+          <input type="password" id="adminPinInput" inputmode="numeric" placeholder="Masukkan PIN baru">
+        </div>
+        <button class="btn-ghost" style="margin-top:0;" onclick="saveAdminPin()">Simpan PIN Admin</button>
+      </div>
+      <div class="card">
         <h3>Wilayah (Kecamatan)</h3>
         <p class="hint">Dipakai pada baris tanda tangan lampiran PDF, contoh: "Negara, 18 Juli 2026".</p>
         <div class="field">
@@ -596,8 +677,9 @@
       </div>
     </section>
 
-    <p class="footer-note">Data tersimpan otomatis di browser HP/laptop kamu.<br>Tidak ada yang dikirim ke server lain.</p>
+    <p class="footer-note">Data tersimpan otomatis di database dan dapat diakses dari perangkat mana pun.</p>
   </main>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -642,10 +724,139 @@ let jamList = [];
 let absenSiswaList = [];
 let wilayah = '';
 let kepsek = { nama: '', nip: '' };
+let adminPin = '123456';
 let headerImage = null;
 let editingId = null;
+let session = null; // { type: 'guru', nip, nama, mapel } atau { type: 'admin' }
+
+// ---- Sesi Login ----
+function loadSession(){
+  try{
+    const raw = localStorage.getItem('jm-session');
+    session = raw ? JSON.parse(raw) : null;
+  }catch(e){ session = null; }
+}
+function saveSession(){
+  try{ localStorage.setItem('jm-session', JSON.stringify(session)); }
+  catch(e){ /* abaikan */ }
+}
+function logout(){
+  session = null;
+  try{ localStorage.removeItem('jm-session'); }catch(e){}
+  document.getElementById('loginNip').value = '';
+  document.getElementById('loginAdminPin').value = '';
+  showLoginBox();
+  hideAdminBox();
+  renderScreens();
+}
+
+function showRegisterBox(){
+  document.getElementById('loginGuruBox').style.display = 'none';
+  document.getElementById('registerGuruBox').style.display = 'block';
+}
+function showLoginBox(){
+  document.getElementById('loginGuruBox').style.display = 'block';
+  document.getElementById('registerGuruBox').style.display = 'none';
+}
+function showAdminBox(){
+  document.getElementById('loginAdminBox').style.display = 'block';
+  document.getElementById('adminToggleBtn').style.display = 'none';
+}
+function hideAdminBox(){
+  document.getElementById('loginAdminBox').style.display = 'none';
+  document.getElementById('adminToggleBtn').style.display = 'inline';
+}
+
+async function loginAsGuru(){
+  const nip = document.getElementById('loginNip').value.trim();
+  if(!nip){ showToast('Masukkan NIP terlebih dahulu.'); return; }
+  if(!requireSupabase()) return;
+  const { data, error } = await sb.from('guru').select('*').eq('nip', nip).maybeSingle();
+  if(error){ console.error(error); showToast('Gagal memeriksa NIP.'); return; }
+  if(!data){
+    showToast('NIP tidak ditemukan. Silakan daftar sebagai guru baru.');
+    return;
+  }
+  session = { type:'guru', id: data.id, nip: data.nip, nama: data.nama, mapel: data.mapel || '' };
+  saveSession();
+  await loadAll();
+}
+
+async function registerGuru(){
+  const nama = document.getElementById('regNama').value.trim();
+  const mapel = document.getElementById('regMapel').value.trim();
+  const nip = document.getElementById('regNip').value.trim();
+  if(!nama || !nip){ showToast('Nama dan NIP wajib diisi.'); return; }
+  if(!requireSupabase()) return;
+
+  const { data: existing } = await sb.from('guru').select('id').eq('nip', nip).maybeSingle();
+  if(existing){ showToast('NIP ini sudah terdaftar. Silakan masuk lewat menu Masuk.'); return; }
+
+  const { data, error } = await sb.from('guru').insert({ nama, mapel, nip }).select().single();
+  if(error){ console.error(error); showToast('Gagal mendaftar. Coba lagi.'); return; }
+
+  session = { type:'guru', id: data.id, nip: data.nip, nama: data.nama, mapel: data.mapel || '' };
+  saveSession();
+  showToast('Pendaftaran berhasil!');
+  await loadAll();
+}
+
+async function loginAsAdmin(){
+  const pin = document.getElementById('loginAdminPin').value.trim();
+  if(!pin){ showToast('Masukkan PIN Admin.'); return; }
+  if(!requireSupabase()) return;
+  const { data, error } = await sb.from('pengaturan').select('admin_pin').eq('id', 1).maybeSingle();
+  if(error){ console.error(error); showToast('Gagal memeriksa PIN.'); return; }
+  const correctPin = (data && data.admin_pin) ? data.admin_pin : '123456';
+  if(pin !== correctPin){
+    showToast('PIN Admin salah.');
+    return;
+  }
+  session = { type:'admin' };
+  saveSession();
+  await loadAll();
+}
+
+function renderScreens(){
+  const isLoggedIn = !!session;
+  document.getElementById('loginScreen').style.display = isLoggedIn ? 'none' : 'block';
+  document.getElementById('appScreen').style.display = isLoggedIn ? 'block' : 'none';
+  if(!isLoggedIn) return;
+
+  const isAdmin = session.type === 'admin';
+  document.getElementById('tabSettings').style.display = isAdmin ? 'block' : 'none';
+  document.getElementById('sessionLabel').textContent = isAdmin
+    ? 'Masuk sebagai Admin'
+    : `Masuk sebagai ${session.nama}`;
+
+  if(!isAdmin){
+    // Guru: kunci Nama Guru di form Tulis ke identitas sendiri
+    const guruField = document.getElementById('fGuru');
+    if(guruField){
+      guruField.value = session.nama;
+      guruField.disabled = true;
+    }
+    const pdfGuruField = document.getElementById('pdfGuru');
+    if(pdfGuruField){
+      pdfGuruField.value = session.nama;
+      pdfGuruField.disabled = true;
+    }
+    onGuruChange();
+  }else{
+    const guruField = document.getElementById('fGuru');
+    if(guruField) guruField.disabled = false;
+    const pdfGuruField = document.getElementById('pdfGuru');
+    if(pdfGuruField) pdfGuruField.disabled = false;
+  }
+}
 
 async function loadAll(){
+  loadSession();
+  renderScreens();
+  if(!session){
+    return;
+  }
+
   if(!supabaseReady){
     showConfigWarning();
     renderGuruOptions(); renderKelasOptions(); renderJamOptions();
@@ -666,7 +877,8 @@ async function loadAll(){
     guruList = (guruRes.data || []).map(g => ({ id: g.id, nama: g.nama, mapel: g.mapel || '', nip: g.nip || '' }));
     kelasList = (kelasRes.data || []).map(k => ({ id: k.id, nama: k.nama }));
     jamList = (jamRes.data || []).map(j => ({ id: j.id, label: j.label, waktu: j.waktu || '' }));
-    entries = (entryRes.data || []).map(e => ({
+
+    let allEntries = (entryRes.data || []).map(e => ({
       id: e.id,
       guru: e.guru,
       tanggal: e.tanggal,
@@ -680,10 +892,14 @@ async function loadAll(){
       createdAt: e.created_at ? new Date(e.created_at).getTime() : Date.now()
     }));
 
+    // Guru hanya melihat catatannya sendiri; Admin melihat semua
+    entries = (session.type === 'admin') ? allEntries : allEntries.filter(e => e.guru === session.nama);
+
     if(pengRes.data){
       wilayah = pengRes.data.wilayah || '';
       kepsek = { nama: pengRes.data.kepsek_nama || '', nip: pengRes.data.kepsek_nip || '' };
       headerImage = pengRes.data.header_image_url ? { url: pengRes.data.header_image_url } : null;
+      adminPin = pengRes.data.admin_pin || '123456';
     }
   }catch(err){
     console.error(err);
@@ -693,6 +909,8 @@ async function loadAll(){
   document.getElementById('wilayahInput').value = wilayah;
   document.getElementById('kepsekNamaInput').value = kepsek.nama || '';
   document.getElementById('kepsekNipInput').value = kepsek.nip || '';
+  const adminPinInputEl = document.getElementById('adminPinInput');
+  if(adminPinInputEl) adminPinInputEl.value = '';
   renderHeaderImagePreview();
 
   renderGuruOptions();
@@ -703,7 +921,7 @@ async function loadAll(){
   renderJamSettingsList();
   renderEntries();
   updateStats();
-  onGuruChange();
+  renderScreens();
 }
 
 function switchView(name){
@@ -722,6 +940,17 @@ document.getElementById('fTanggal').value = todayStr();
 document.getElementById('pdfTanggal').value = todayStr();
 
 // ---- Wilayah & Kepala Sekolah ----
+async function saveAdminPin(){
+  const pin = document.getElementById('adminPinInput').value.trim();
+  if(!pin || pin.length < 4){ showToast('PIN minimal 4 karakter.'); return; }
+  if(!requireSupabase()) return;
+  const { error } = await sb.from('pengaturan').update({ admin_pin: pin }).eq('id', 1);
+  if(error){ console.error(error); showToast('Gagal menyimpan PIN Admin.'); return; }
+  adminPin = pin;
+  document.getElementById('adminPinInput').value = '';
+  showToast('PIN Admin berhasil diganti.');
+}
+
 async function saveWilayah(){
   wilayah = document.getElementById('wilayahInput').value.trim();
   if(!requireSupabase()) return;
@@ -1126,7 +1355,7 @@ function renderEntries(){
       <div class="kv"><div class="k">Kehadiran Siswa</div><div class="v">${escapeHtml(absenText(e))}</div></div>
       <div class="actions">
         <button class="edit" onclick="editEntry('${e.id}')">Ubah</button>
-        <button class="del" onclick="deleteEntry('${e.id}')">Hapus</button>
+        ${session && session.type === 'admin' ? `<button class="del" onclick="deleteEntry('${e.id}')">Hapus</button>` : ''}
       </div>
     </div>
   `).join('');
