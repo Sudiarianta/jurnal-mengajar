@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root{
     --bg: #f5f5f3;
@@ -413,6 +414,9 @@
 </head>
 <body>
 <div class="app">
+  <div id="configWarning" style="display:none; background:#b3523f; color:#fff; padding:12px 18px; font-size:12.5px; line-height:1.5; text-align:center;">
+    ⚠️ Supabase belum dikonfigurasi. Buka kode sumber (index.html), cari <code>https://psanpvxevlzxhvxmwupo.supabase.co</code> dan <code>sb_publishable_Pt84meoyR-ydGmAKRp0hnQ_fdo6ruVu</code> di bagian atas &lt;script&gt;, lalu isi dengan data project Supabase Anda.
+  </div>
   <header>
     <div class="eyebrow">Buku Catatan Digital</div>
     <h1>Jurnal Mengajar</h1>
@@ -599,6 +603,38 @@
 <div class="toast" id="toast"></div>
 
 <script>
+/* =====================================================================
+   KONFIGURASI SUPABASE — WAJIB DIISI SEBELUM DIPAKAI
+   1. Buka project Supabase Anda → Settings → API
+   2. Salin "Project URL" ke SUPABASE_URL
+   3. Salin "anon public" key ke SUPABASE_ANON_KEY
+   ===================================================================== */
+const SUPABASE_URL = 'https://xxxxxxxxxxxxxxxxxxxx.supabase.co'; // GANTI dengan Project URL Anda
+const SUPABASE_ANON_KEY = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; // GANTI dengan anon public key Anda
+const HEADER_BUCKET = 'header-images';
+
+let sb = null;
+let supabaseReady = false;
+(function initSupabase(){
+  const urlOk = SUPABASE_URL.startsWith('https://') && !SUPABASE_URL.includes('xxxx');
+  const keyOk = SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('xxxx');
+  if(urlOk && keyOk && window.supabase){
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    supabaseReady = true;
+  }
+})();
+function requireSupabase(){
+  if(!supabaseReady){
+    showToast('Supabase belum dikonfigurasi. Edit SUPABASE_URL & SUPABASE_ANON_KEY di kode.');
+    return false;
+  }
+  return true;
+}
+function showConfigWarning(){
+  const el = document.getElementById('configWarning');
+  if(el) el.style.display = 'block';
+}
+
 let entries = [];
 let guruList = [];
 let kelasList = [];
@@ -609,36 +645,52 @@ let kepsek = { nama: '', nip: '' };
 let headerImage = null;
 let editingId = null;
 
-function loadAll(){
+async function loadAll(){
+  if(!supabaseReady){
+    showConfigWarning();
+    renderGuruOptions(); renderKelasOptions(); renderJamOptions();
+    renderGuruSettingsList(); renderKelasSettingsList(); renderJamSettingsList();
+    renderHeaderImagePreview();
+    renderEntries(); updateStats(); onGuruChange();
+    return;
+  }
   try{
-    const raw = localStorage.getItem('jm-entries');
-    entries = raw ? JSON.parse(raw) : [];
-  }catch(e){ entries = []; }
-  try{
-    const raw = localStorage.getItem('jm-guru-list');
-    guruList = raw ? JSON.parse(raw) : [];
-    guruList = guruList.map(g => typeof g === 'string' ? {nama: g, mapel: '', nip: ''} : {nip:'', ...g});
-  }catch(e){ guruList = []; }
-  try{
-    const raw = localStorage.getItem('jm-kelas-list');
-    kelasList = raw ? JSON.parse(raw) : [];
-  }catch(e){ kelasList = []; }
-  try{
-    const raw = localStorage.getItem('jm-jam-list');
-    jamList = raw ? JSON.parse(raw) : [];
-  }catch(e){ jamList = []; }
-  try{
-    wilayah = localStorage.getItem('jm-wilayah') || '';
-  }catch(e){ wilayah = ''; }
-  try{
-    const raw = localStorage.getItem('jm-header-image');
-    headerImage = raw ? JSON.parse(raw) : null;
-  }catch(e){ headerImage = null; }
+    const [guruRes, kelasRes, jamRes, entryRes, pengRes] = await Promise.all([
+      sb.from('guru').select('*').order('nama'),
+      sb.from('kelas').select('*').order('nama'),
+      sb.from('jam_mengajar').select('*').order('created_at'),
+      sb.from('jurnal_entries').select('*').order('created_at'),
+      sb.from('pengaturan').select('*').eq('id', 1).maybeSingle()
+    ]);
+
+    guruList = (guruRes.data || []).map(g => ({ id: g.id, nama: g.nama, mapel: g.mapel || '', nip: g.nip || '' }));
+    kelasList = (kelasRes.data || []).map(k => ({ id: k.id, nama: k.nama }));
+    jamList = (jamRes.data || []).map(j => ({ id: j.id, label: j.label, waktu: j.waktu || '' }));
+    entries = (entryRes.data || []).map(e => ({
+      id: e.id,
+      guru: e.guru,
+      tanggal: e.tanggal,
+      kelas: e.kelas,
+      jam: e.jam,
+      materi: e.materi,
+      refleksi1: e.refleksi1 || '',
+      refleksi2: e.refleksi2 || '',
+      refleksi3: e.refleksi3 || '',
+      absen: e.absen || { hadirSemua: true, list: [] },
+      createdAt: e.created_at ? new Date(e.created_at).getTime() : Date.now()
+    }));
+
+    if(pengRes.data){
+      wilayah = pengRes.data.wilayah || '';
+      kepsek = { nama: pengRes.data.kepsek_nama || '', nip: pengRes.data.kepsek_nip || '' };
+      headerImage = pengRes.data.header_image_url ? { url: pengRes.data.header_image_url } : null;
+    }
+  }catch(err){
+    console.error(err);
+    showToast('Gagal memuat data dari Supabase. Cek koneksi/konfigurasi.');
+  }
+
   document.getElementById('wilayahInput').value = wilayah;
-  try{
-    const raw = localStorage.getItem('jm-kepsek');
-    kepsek = raw ? JSON.parse(raw) : { nama: '', nip: '' };
-  }catch(e){ kepsek = { nama: '', nip: '' }; }
   document.getElementById('kepsekNamaInput').value = kepsek.nama || '';
   document.getElementById('kepsekNipInput').value = kepsek.nip || '';
   renderHeaderImagePreview();
@@ -652,100 +704,6 @@ function loadAll(){
   renderEntries();
   updateStats();
   onGuruChange();
-}
-
-function saveWilayah(){
-  wilayah = document.getElementById('wilayahInput').value.trim();
-  try{
-    localStorage.setItem('jm-wilayah', wilayah);
-    showToast('Wilayah disimpan.');
-  }catch(e){
-    showToast('Gagal menyimpan wilayah.');
-  }
-}
-function saveKepsek(){
-  kepsek = {
-    nama: document.getElementById('kepsekNamaInput').value.trim(),
-    nip: document.getElementById('kepsekNipInput').value.trim()
-  };
-  try{
-    localStorage.setItem('jm-kepsek', JSON.stringify(kepsek));
-    showToast('Data kepala sekolah disimpan.');
-  }catch(e){
-    showToast('Gagal menyimpan data kepala sekolah.');
-  }
-}
-
-// ---- Gambar Kop ----
-function renderHeaderImagePreview(){
-  const wrap = document.getElementById('headerImagePreviewWrap');
-  const img = document.getElementById('headerImagePreview');
-  if(headerImage && headerImage.dataUrl){
-    img.src = headerImage.dataUrl;
-    wrap.style.display = 'block';
-  }else{
-    wrap.style.display = 'none';
-  }
-}
-function handleHeaderImageUpload(event){
-  const file = event.target.files[0];
-  if(!file) return;
-  if(!['image/png','image/jpeg'].includes(file.type)){
-    showToast('Format gambar harus PNG atau JPG.');
-    event.target.value = '';
-    return;
-  }
-  if(file.size > 800*1024){
-    showToast('Ukuran file terlalu besar. Gunakan gambar di bawah 500KB.');
-    event.target.value = '';
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = function(e){
-    const dataUrl = e.target.result;
-    const img = new Image();
-    img.onload = function(){
-      headerImage = { dataUrl, width: img.naturalWidth, height: img.naturalHeight };
-      try{
-        localStorage.setItem('jm-header-image', JSON.stringify(headerImage));
-        renderHeaderImagePreview();
-        showToast('Gambar kop berhasil disimpan.');
-      }catch(err){
-        headerImage = null;
-        showToast('Gagal menyimpan gambar. Coba gambar dengan ukuran file lebih kecil.');
-      }
-    };
-    img.onerror = function(){
-      showToast('Gagal membaca gambar. Coba file lain.');
-    };
-    img.src = dataUrl;
-  };
-  reader.readAsDataURL(file);
-  event.target.value = '';
-}
-function removeHeaderImage(){
-  if(!confirm('Hapus gambar kop dan kembali memakai kop teks otomatis?')) return;
-  headerImage = null;
-  try{ localStorage.removeItem('jm-header-image'); }catch(e){}
-  renderHeaderImagePreview();
-  showToast('Gambar kop dihapus.');
-}
-
-function persistEntries(){
-  try{ localStorage.setItem('jm-entries', JSON.stringify(entries)); }
-  catch(e){ showToast('Gagal menyimpan catatan.'); }
-}
-function persistGuru(){
-  try{ localStorage.setItem('jm-guru-list', JSON.stringify(guruList)); }
-  catch(e){ showToast('Gagal menyimpan data guru.'); }
-}
-function persistKelas(){
-  try{ localStorage.setItem('jm-kelas-list', JSON.stringify(kelasList)); }
-  catch(e){ showToast('Gagal menyimpan data kelas.'); }
-}
-function persistJam(){
-  try{ localStorage.setItem('jm-jam-list', JSON.stringify(jamList)); }
-  catch(e){ showToast('Gagal menyimpan data jam mengajar.'); }
 }
 
 function switchView(name){
@@ -762,6 +720,87 @@ function todayStr(){
 }
 document.getElementById('fTanggal').value = todayStr();
 document.getElementById('pdfTanggal').value = todayStr();
+
+// ---- Wilayah & Kepala Sekolah ----
+async function saveWilayah(){
+  wilayah = document.getElementById('wilayahInput').value.trim();
+  if(!requireSupabase()) return;
+  const { error } = await sb.from('pengaturan').update({ wilayah }).eq('id', 1);
+  if(error){ console.error(error); showToast('Gagal menyimpan wilayah.'); return; }
+  showToast('Wilayah disimpan.');
+}
+async function saveKepsek(){
+  kepsek = {
+    nama: document.getElementById('kepsekNamaInput').value.trim(),
+    nip: document.getElementById('kepsekNipInput').value.trim()
+  };
+  if(!requireSupabase()) return;
+  const { error } = await sb.from('pengaturan').update({ kepsek_nama: kepsek.nama, kepsek_nip: kepsek.nip }).eq('id', 1);
+  if(error){ console.error(error); showToast('Gagal menyimpan data kepala sekolah.'); return; }
+  showToast('Data kepala sekolah disimpan.');
+}
+
+// ---- Gambar Kop (Supabase Storage) ----
+function renderHeaderImagePreview(){
+  const wrap = document.getElementById('headerImagePreviewWrap');
+  const img = document.getElementById('headerImagePreview');
+  if(headerImage && headerImage.url){
+    img.src = headerImage.url;
+    wrap.style.display = 'block';
+  }else{
+    wrap.style.display = 'none';
+  }
+}
+async function handleHeaderImageUpload(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  if(!['image/png','image/jpeg'].includes(file.type)){
+    showToast('Format gambar harus PNG atau JPG.');
+    event.target.value = '';
+    return;
+  }
+  if(file.size > 800*1024){
+    showToast('Ukuran file terlalu besar. Gunakan gambar di bawah 500KB.');
+    event.target.value = '';
+    return;
+  }
+  if(!requireSupabase()){ event.target.value = ''; return; }
+
+  showToast('Mengupload gambar...');
+  const ext = file.type === 'image/png' ? 'png' : 'jpg';
+  const path = `kop-${Date.now()}.${ext}`;
+  const { error: upErr } = await sb.storage.from(HEADER_BUCKET).upload(path, file, { upsert: true, contentType: file.type });
+  if(upErr){
+    console.error(upErr);
+    showToast('Gagal mengupload gambar. Pastikan bucket "header-images" sudah dibuat & public.');
+    event.target.value = '';
+    return;
+  }
+  const { data: urlData } = sb.storage.from(HEADER_BUCKET).getPublicUrl(path);
+  const publicUrl = urlData.publicUrl;
+
+  const { error: updErr } = await sb.from('pengaturan').update({ header_image_url: publicUrl }).eq('id', 1);
+  if(updErr){
+    console.error(updErr);
+    showToast('Gagal menyimpan URL gambar.');
+    event.target.value = '';
+    return;
+  }
+
+  headerImage = { url: publicUrl };
+  renderHeaderImagePreview();
+  showToast('Gambar kop berhasil disimpan.');
+  event.target.value = '';
+}
+async function removeHeaderImage(){
+  if(!confirm('Hapus gambar kop dan kembali memakai kop teks otomatis?')) return;
+  if(!requireSupabase()) return;
+  const { error } = await sb.from('pengaturan').update({ header_image_url: null }).eq('id', 1);
+  if(error){ console.error(error); showToast('Gagal menghapus gambar kop.'); return; }
+  headerImage = null;
+  renderHeaderImagePreview();
+  showToast('Gambar kop dihapus.');
+}
 
 // ---- Kehadiran ----
 function toggleHadirSemua(){
@@ -805,7 +844,7 @@ function absenText(e){
   return parts.length ? parts.join(' | ') : 'Hadir Semua';
 }
 
-// ---- Guru & Kelas master data ----
+// ---- Guru, Kelas, Jam (master data) ----
 function renderGuruOptions(){
   const options = guruList.length
     ? guruList.map(g=>`<option value="${escapeHtml(g.nama)}">${escapeHtml(g.nama)}</option>`).join('')
@@ -829,10 +868,10 @@ function renderKelasOptions(){
   const sel = document.getElementById('fKelas');
   const current = sel.value;
   sel.innerHTML = kelasList.length
-    ? kelasList.map(k=>`<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('')
+    ? kelasList.map(k=>`<option value="${escapeHtml(k.nama)}">${escapeHtml(k.nama)}</option>`).join('')
     : '<option value="">— Belum ada data —</option>';
   document.getElementById('kelasEmptyHint').style.display = kelasList.length ? 'none' : 'block';
-  if(kelasList.includes(current)) sel.value = current;
+  if(kelasList.some(k=>k.nama===current)) sel.value = current;
 }
 function jamDisplay(j){ return j.waktu ? `${j.label} (${j.waktu})` : j.label; }
 function renderJamOptions(){
@@ -843,34 +882,6 @@ function renderJamOptions(){
     : '<option value="">— Belum ada data —</option>';
   document.getElementById('jamEmptyHint').style.display = jamList.length ? 'none' : 'block';
   if(jamList.some(j=>j.label===current)) sel.value = current;
-}
-function renderJamSettingsList(){
-  const ul = document.getElementById('jamListUI');
-  ul.innerHTML = jamList.length
-    ? jamList.map((j,i)=>`<li><span>${escapeHtml(jamDisplay(j))}</span><button onclick="removeJam(${i})">Hapus</button></li>`).join('')
-    : '<div class="empty-row">Belum ada jam mengajar ditambahkan.</div>';
-}
-function addJam(){
-  const labelInput = document.getElementById('newJamLabel');
-  const waktuInput = document.getElementById('newJamWaktu');
-  const label = labelInput.value.trim();
-  const waktu = waktuInput.value.trim();
-  if(!label){ showToast('Isi kategori jam terlebih dahulu.'); return; }
-  if(jamList.some(j=>j.label===label)){ showToast('Kategori jam sudah ada.'); return; }
-  jamList.push({label, waktu});
-  persistJam();
-  labelInput.value = '';
-  waktuInput.value = '';
-  renderJamSettingsList();
-  renderJamOptions();
-  showToast('Jam mengajar ditambahkan.');
-}
-function removeJam(i){
-  if(!confirm('Hapus data jam mengajar ini?')) return;
-  jamList.splice(i,1);
-  persistJam();
-  renderJamSettingsList();
-  renderJamOptions();
 }
 function onGuruChange(){
   const val = document.getElementById('fGuru').value;
@@ -887,17 +898,23 @@ function onGuruChange(){
 function renderGuruSettingsList(){
   const ul = document.getElementById('guruListUI');
   ul.innerHTML = guruList.length
-    ? guruList.map((g,i)=>`<li><span>${escapeHtml(g.nama)}${g.mapel ? ' — '+escapeHtml(g.mapel) : ''}${g.nip ? ' · NIP '+escapeHtml(g.nip) : ''}</span><button onclick="removeGuru(${i})">Hapus</button></li>`).join('')
+    ? guruList.map(g=>`<li><span>${escapeHtml(g.nama)}${g.mapel ? ' — '+escapeHtml(g.mapel) : ''}${g.nip ? ' · NIP '+escapeHtml(g.nip) : ''}</span><button onclick="removeGuru('${g.id}')">Hapus</button></li>`).join('')
     : '<div class="empty-row">Belum ada nama guru ditambahkan.</div>';
 }
 function renderKelasSettingsList(){
   const ul = document.getElementById('kelasListUI');
   ul.innerHTML = kelasList.length
-    ? kelasList.map((k,i)=>`<li><span>${escapeHtml(k)}</span><button onclick="removeKelas(${i})">Hapus</button></li>`).join('')
+    ? kelasList.map(k=>`<li><span>${escapeHtml(k.nama)}</span><button onclick="removeKelas('${k.id}')">Hapus</button></li>`).join('')
     : '<div class="empty-row">Belum ada nama kelas ditambahkan.</div>';
 }
+function renderJamSettingsList(){
+  const ul = document.getElementById('jamListUI');
+  ul.innerHTML = jamList.length
+    ? jamList.map(j=>`<li><span>${escapeHtml(jamDisplay(j))}</span><button onclick="removeJam('${j.id}')">Hapus</button></li>`).join('')
+    : '<div class="empty-row">Belum ada jam mengajar ditambahkan.</div>';
+}
 
-function addGuru(){
+async function addGuru(){
   const input = document.getElementById('newGuru');
   const mapelInput = document.getElementById('newGuruMapel');
   const nipInput = document.getElementById('newGuruNip');
@@ -906,46 +923,77 @@ function addGuru(){
   const nip = nipInput.value.trim();
   if(!val){ showToast('Isi nama guru terlebih dahulu.'); return; }
   if(guruList.some(g=>g.nama===val)){ showToast('Nama guru sudah ada.'); return; }
-  guruList.push({nama: val, mapel: mapel, nip: nip});
-  persistGuru();
-  input.value = '';
-  mapelInput.value = '';
-  nipInput.value = '';
+  if(!requireSupabase()) return;
+  const { data, error } = await sb.from('guru').insert({ nama: val, mapel, nip }).select().single();
+  if(error){ console.error(error); showToast('Gagal menambah guru.'); return; }
+  guruList.push({ id: data.id, nama: data.nama, mapel: data.mapel || '', nip: data.nip || '' });
+  input.value = ''; mapelInput.value = ''; nipInput.value = '';
   renderGuruSettingsList();
   renderGuruOptions();
   onGuruChange();
   showToast('Guru ditambahkan.');
 }
-function removeGuru(i){
+async function removeGuru(id){
   if(!confirm('Hapus nama guru ini dari daftar?')) return;
-  guruList.splice(i,1);
-  persistGuru();
+  if(!requireSupabase()) return;
+  const { error } = await sb.from('guru').delete().eq('id', id);
+  if(error){ console.error(error); showToast('Gagal menghapus guru.'); return; }
+  guruList = guruList.filter(g=>g.id!==id);
   renderGuruSettingsList();
   renderGuruOptions();
   onGuruChange();
 }
-function addKelas(){
+async function addKelas(){
   const input = document.getElementById('newKelas');
   const val = input.value.trim();
   if(!val) return;
-  if(kelasList.includes(val)){ showToast('Nama kelas sudah ada.'); return; }
-  kelasList.push(val);
-  persistKelas();
+  if(kelasList.some(k=>k.nama===val)){ showToast('Nama kelas sudah ada.'); return; }
+  if(!requireSupabase()) return;
+  const { data, error } = await sb.from('kelas').insert({ nama: val }).select().single();
+  if(error){ console.error(error); showToast('Gagal menambah kelas.'); return; }
+  kelasList.push({ id: data.id, nama: data.nama });
   input.value = '';
   renderKelasSettingsList();
   renderKelasOptions();
   showToast('Kelas ditambahkan.');
 }
-function removeKelas(i){
+async function removeKelas(id){
   if(!confirm('Hapus nama kelas ini dari daftar?')) return;
-  kelasList.splice(i,1);
-  persistKelas();
+  if(!requireSupabase()) return;
+  const { error } = await sb.from('kelas').delete().eq('id', id);
+  if(error){ console.error(error); showToast('Gagal menghapus kelas.'); return; }
+  kelasList = kelasList.filter(k=>k.id!==id);
   renderKelasSettingsList();
   renderKelasOptions();
 }
+async function addJam(){
+  const labelInput = document.getElementById('newJamLabel');
+  const waktuInput = document.getElementById('newJamWaktu');
+  const label = labelInput.value.trim();
+  const waktu = waktuInput.value.trim();
+  if(!label){ showToast('Isi kategori jam terlebih dahulu.'); return; }
+  if(jamList.some(j=>j.label===label)){ showToast('Kategori jam sudah ada.'); return; }
+  if(!requireSupabase()) return;
+  const { data, error } = await sb.from('jam_mengajar').insert({ label, waktu }).select().single();
+  if(error){ console.error(error); showToast('Gagal menambah jam mengajar.'); return; }
+  jamList.push({ id: data.id, label: data.label, waktu: data.waktu || '' });
+  labelInput.value = ''; waktuInput.value = '';
+  renderJamSettingsList();
+  renderJamOptions();
+  showToast('Jam mengajar ditambahkan.');
+}
+async function removeJam(id){
+  if(!confirm('Hapus data jam mengajar ini?')) return;
+  if(!requireSupabase()) return;
+  const { error } = await sb.from('jam_mengajar').delete().eq('id', id);
+  if(error){ console.error(error); showToast('Gagal menghapus jam.'); return; }
+  jamList = jamList.filter(j=>j.id!==id);
+  renderJamSettingsList();
+  renderJamOptions();
+}
 
-// ---- Entries ----
-function saveEntry(){
+// ---- Entries (Jurnal) ----
+async function saveEntry(){
   const guru = document.getElementById('fGuru').value;
   const tanggal = document.getElementById('fTanggal').value;
   const kelas = document.getElementById('fKelas').value;
@@ -965,23 +1013,23 @@ function saveEntry(){
     showToast('Mohon isi tanggal dan materi.');
     return;
   }
+  if(!requireSupabase()) return;
+
+  const payload = { guru, tanggal, kelas, jam, materi, refleksi1, refleksi2, refleksi3, absen };
 
   if(editingId){
+    const { error } = await sb.from('jurnal_entries').update(payload).eq('id', editingId);
+    if(error){ console.error(error); showToast('Gagal memperbarui catatan.'); return; }
     const idx = entries.findIndex(e=>e.id===editingId);
-    if(idx>-1){
-      entries[idx] = {...entries[idx], guru, tanggal, kelas, jam, materi, refleksi1, refleksi2, refleksi3, absen};
-    }
+    if(idx>-1) entries[idx] = {...entries[idx], ...payload};
     showToast('Catatan diperbarui.');
   }else{
-    entries.push({
-      id: Date.now().toString(),
-      guru, tanggal, kelas, jam, materi, refleksi1, refleksi2, refleksi3, absen,
-      createdAt: Date.now()
-    });
+    const { data, error } = await sb.from('jurnal_entries').insert(payload).select().single();
+    if(error){ console.error(error); showToast('Gagal menyimpan catatan.'); return; }
+    entries.push({ ...payload, id: data.id, createdAt: new Date(data.created_at).getTime() });
     showToast('Catatan tersimpan.');
   }
 
-  persistEntries();
   resetForm();
   updateStats();
   switchView('hist');
@@ -1024,10 +1072,12 @@ function editEntry(id){
   switchView('write');
 }
 
-function deleteEntry(id){
+async function deleteEntry(id){
   if(!confirm('Hapus catatan ini?')) return;
+  if(!requireSupabase()) return;
+  const { error } = await sb.from('jurnal_entries').delete().eq('id', id);
+  if(error){ console.error(error); showToast('Gagal menghapus catatan.'); return; }
   entries = entries.filter(e=>e.id!==id);
-  persistEntries();
   renderEntries();
   updateStats();
   showToast('Catatan dihapus.');
@@ -1070,7 +1120,6 @@ function renderEntries(){
         </div>
         <span class="date">${formatDate(e.tanggal)}</span>
       </div>
-      ${e.jam ? `<div class="kv"><div class="k">Jam Ke</div><div class="v">${escapeHtml(e.jam)}</div></div>` : ''}
       ${e.refleksi1 ? `<div class="kv"><div class="k">1. Pengalaman/Hal Baik</div><div class="v">${escapeHtml(e.refleksi1)}</div></div>` : ''}
       ${e.refleksi2 ? `<div class="kv"><div class="k">2. Hal Belum Baik/Kendala</div><div class="v">${escapeHtml(e.refleksi2)}</div></div>` : ''}
       ${e.refleksi3 ? `<div class="kv"><div class="k">3. Tindak Lanjut</div><div class="v">${escapeHtml(e.refleksi3)}</div></div>` : ''}
@@ -1109,7 +1158,18 @@ function exportCSV(){
   URL.revokeObjectURL(url);
 }
 
-function generateJournalPDF(){
+function loadImageAsDataUrl(url){
+  return fetch(url)
+    .then(res => res.blob())
+    .then(blob => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    }));
+}
+
+async function generateJournalPDF(){
   const guruName = document.getElementById('pdfGuru').value;
   const tanggal = document.getElementById('pdfTanggal').value;
 
@@ -1133,6 +1193,22 @@ function generateJournalPDF(){
 
   const guruData = guruList.find(g => g.nama === guruName) || {nama: guruName, mapel: '', nip: ''};
 
+  let headerImgData = null;
+  if(headerImage && headerImage.url){
+    try{
+      const dataUrl = await loadImageAsDataUrl(headerImage.url);
+      const dims = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve({width: img.naturalWidth, height: img.naturalHeight});
+        img.onerror = reject;
+        img.src = dataUrl;
+      });
+      headerImgData = { dataUrl, width: dims.width, height: dims.height };
+    }catch(err){
+      console.error(err);
+    }
+  }
+
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:'mm', format:'a4', orientation:'portrait'});
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -1151,18 +1227,18 @@ function generateJournalPDF(){
   }
 
   // Kop Surat
-  if(headerImage && headerImage.dataUrl){
+  if(headerImgData){
     const maxW = usableWidth;
     const maxH = 22;
     let imgW = maxW;
-    let imgH = imgW * (headerImage.height / headerImage.width);
+    let imgH = imgW * (headerImgData.height / headerImgData.width);
     if(imgH > maxH){
       imgH = maxH;
-      imgW = imgH * (headerImage.width / headerImage.height);
+      imgW = imgH * (headerImgData.width / headerImgData.height);
     }
     const imgX = (pageWidth - imgW) / 2;
-    const format = headerImage.dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG';
-    doc.addImage(headerImage.dataUrl, format, imgX, y, imgW, imgH);
+    const format = headerImgData.dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+    doc.addImage(headerImgData.dataUrl, format, imgX, y, imgW, imgH);
     y += imgH + 3;
     doc.setLineWidth(0.6);
     doc.line(marginLeft, y, pageWidth-marginRight, y);
