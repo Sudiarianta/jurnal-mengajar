@@ -636,7 +636,7 @@
       </div>
       <div class="card">
         <h3>Data Guru</h3>
-        <p class="hint">Nama, mata pelajaran, dan NIP guru dipakai untuk pilihan di form Tulis Catatan, dan untuk kolom tanda tangan pada lampiran PDF.</p>
+        <p class="hint">Nama, mata pelajaran, dan NIP guru dipakai untuk pilihan di form Tulis Catatan, dan untuk kolom tanda tangan pada lampiran PDF. Menu ini hanya terlihat oleh Admin.</p>
         <div class="field">
           <label>Nama Guru</label>
           <input type="text" id="newGuru" placeholder="Nama guru baru">
@@ -649,7 +649,8 @@
           <label>NIP</label>
           <input type="text" id="newGuruNip" placeholder="Nomor Induk Pegawai">
         </div>
-        <button class="btn-ghost" style="margin-top:0;" onclick="addGuru()">Tambah Guru</button>
+        <button class="btn-ghost" style="margin-top:0;" id="guruSaveBtn" onclick="saveGuru()">Tambah Guru</button>
+        <button class="btn-ghost" id="cancelGuruEditBtn" style="display:none;" onclick="cancelGuruEdit()">Batalkan Ubah</button>
         <ul class="chip-list" id="guruListUI" style="margin-top:16px;"></ul>
       </div>
       <div class="card">
@@ -691,8 +692,8 @@
    2. Salin "Project URL" ke SUPABASE_URL
    3. Salin "anon public" key ke SUPABASE_ANON_KEY
    ===================================================================== */
-const SUPABASE_URL = "https://psanpvxevlzxhvxmwupo.supabase.co"; // GANTI dengan Project URL Anda
-const SUPABASE_ANON_KEY = "sb_publishable_Pt84meoyR-ydGmAKRp0hnQ_fdo6ruVu"; // GANTI dengan anon public key Anda
+const SUPABASE_URL = 'https://psanpvxevlzxhvxmwupo.supabase.co'; // GANTI dengan Project URL Anda
+const SUPABASE_ANON_KEY = 'sb_publishable_Pt84meoyR-ydGmAKRp0hnQ_fdo6ruVu'; // GANTI dengan anon public key Anda
 const HEADER_BUCKET = 'header-images';
 
 let sb = null;
@@ -1127,7 +1128,7 @@ function onGuruChange(){
 function renderGuruSettingsList(){
   const ul = document.getElementById('guruListUI');
   ul.innerHTML = guruList.length
-    ? guruList.map(g=>`<li><span>${escapeHtml(g.nama)}${g.mapel ? ' — '+escapeHtml(g.mapel) : ''}${g.nip ? ' · NIP '+escapeHtml(g.nip) : ''}</span><button onclick="removeGuru('${g.id}')">Hapus</button></li>`).join('')
+    ? guruList.map(g=>`<li><span>${escapeHtml(g.nama)}${g.mapel ? ' — '+escapeHtml(g.mapel) : ''}${g.nip ? ' · NIP '+escapeHtml(g.nip) : ''}</span><span style="display:flex; gap:6px; flex-shrink:0;"><button onclick="editGuru('${g.id}')" style="color:var(--ink-soft);">Ubah</button><button onclick="removeGuru('${g.id}')">Hapus</button></span></li>`).join('')
     : '<div class="empty-row">Belum ada nama guru ditambahkan.</div>';
 }
 function renderKelasSettingsList(){
@@ -1143,7 +1144,28 @@ function renderJamSettingsList(){
     : '<div class="empty-row">Belum ada jam mengajar ditambahkan.</div>';
 }
 
-async function addGuru(){
+let editingGuruId = null;
+
+function editGuru(id){
+  const g = guruList.find(x=>x.id===id);
+  if(!g) return;
+  editingGuruId = id;
+  document.getElementById('newGuru').value = g.nama;
+  document.getElementById('newGuruMapel').value = g.mapel || '';
+  document.getElementById('newGuruNip').value = g.nip || '';
+  document.getElementById('guruSaveBtn').textContent = 'Perbarui Guru';
+  document.getElementById('cancelGuruEditBtn').style.display = 'block';
+}
+function cancelGuruEdit(){
+  editingGuruId = null;
+  document.getElementById('newGuru').value = '';
+  document.getElementById('newGuruMapel').value = '';
+  document.getElementById('newGuruNip').value = '';
+  document.getElementById('guruSaveBtn').textContent = 'Tambah Guru';
+  document.getElementById('cancelGuruEditBtn').style.display = 'none';
+}
+
+async function saveGuru(){
   const input = document.getElementById('newGuru');
   const mapelInput = document.getElementById('newGuruMapel');
   const nipInput = document.getElementById('newGuruNip');
@@ -1151,23 +1173,59 @@ async function addGuru(){
   const mapel = mapelInput.value.trim();
   const nip = nipInput.value.trim();
   if(!val){ showToast('Isi nama guru terlebih dahulu.'); return; }
-  if(guruList.some(g=>g.nama===val)){ showToast('Nama guru sudah ada.'); return; }
   if(!requireSupabase()) return;
-  const { data, error } = await sb.from('guru').insert({ nama: val, mapel, nip }).select().single();
-  if(error){ console.error(error); showToast('Gagal menambah guru.'); return; }
-  guruList.push({ id: data.id, nama: data.nama, mapel: data.mapel || '', nip: data.nip || '' });
-  input.value = ''; mapelInput.value = ''; nipInput.value = '';
-  renderGuruSettingsList();
-  renderGuruOptions();
-  onGuruChange();
-  showToast('Guru ditambahkan.');
+
+  if(editingGuruId){
+    const old = guruList.find(g=>g.id===editingGuruId);
+    if(!old){ cancelGuruEdit(); return; }
+    if(guruList.some(g=>g.id!==editingGuruId && g.nama===val)){
+      showToast('Nama guru sudah dipakai guru lain.');
+      return;
+    }
+
+    const { error } = await sb.from('guru').update({ nama: val, mapel, nip }).eq('id', editingGuruId);
+    if(error){ console.error(error); showToast('Gagal memperbarui data guru.'); return; }
+
+    // Jika nama berubah, samakan juga nama pada seluruh catatan jurnal lama miliknya
+    // supaya riwayat yang sudah diisi guru tidak hilang/terputus.
+    if(old.nama !== val){
+      const { error: entriesErr } = await sb.from('jurnal_entries').update({ guru: val }).eq('guru', old.nama);
+      if(entriesErr){
+        console.error(entriesErr);
+        showToast('Data guru tersimpan, tapi gagal memperbarui riwayat jurnal lama.');
+      }else{
+        entries.forEach(e => { if(e.guru === old.nama) e.guru = val; });
+      }
+    }
+
+    const idx = guruList.findIndex(g=>g.id===editingGuruId);
+    if(idx>-1) guruList[idx] = { id: editingGuruId, nama: val, mapel, nip };
+
+    cancelGuruEdit();
+    renderGuruSettingsList();
+    renderGuruOptions();
+    renderEntries();
+    onGuruChange();
+    showToast('Data guru diperbarui.');
+  }else{
+    if(guruList.some(g=>g.nama===val)){ showToast('Nama guru sudah ada.'); return; }
+    const { data, error } = await sb.from('guru').insert({ nama: val, mapel, nip }).select().single();
+    if(error){ console.error(error); showToast('Gagal menambah guru.'); return; }
+    guruList.push({ id: data.id, nama: data.nama, mapel: data.mapel || '', nip: data.nip || '' });
+    input.value = ''; mapelInput.value = ''; nipInput.value = '';
+    renderGuruSettingsList();
+    renderGuruOptions();
+    onGuruChange();
+    showToast('Guru ditambahkan.');
+  }
 }
 async function removeGuru(id){
-  if(!confirm('Hapus nama guru ini dari daftar?')) return;
+  if(!confirm('Hapus nama guru ini dari daftar? Catatan jurnal lama miliknya tidak akan terhapus.')) return;
   if(!requireSupabase()) return;
   const { error } = await sb.from('guru').delete().eq('id', id);
   if(error){ console.error(error); showToast('Gagal menghapus guru.'); return; }
   guruList = guruList.filter(g=>g.id!==id);
+  if(editingGuruId === id) cancelGuruEdit();
   renderGuruSettingsList();
   renderGuruOptions();
   onGuruChange();
